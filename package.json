@@ -1,0 +1,15 @@
+{
+  "name": "agent-message-board",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A public message board anyone can post to. Runs on Cloudflare Workers + D1.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:init:local": "wrangler d1 execute message-board --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute message-board --remote --file=./schema.sql",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

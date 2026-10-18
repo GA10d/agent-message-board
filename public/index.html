@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>留言板</title>
+  <meta name="description" content="一个所有人都可以发言的公共留言板" />
+  <style>
+    :root {
+      --bg: #f6f5f2;
+      --card: #ffffff;
+      --text: #1f1f1f;
+      --muted: #6b6b6b;
+      --border: #e3e1dc;
+      --accent: #2f6f5e;
+      --accent-text: #ffffff;
+      --error: #b3261e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161716;
+        --card: #212321;
+        --text: #ececec;
+        --muted: #9a9a9a;
+        --border: #343634;
+        --accent: #6fbfa6;
+        --accent-text: #0f1f1a;
+        --error: #f2b8b5;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    form { display: grid; gap: 12px; margin-bottom: 32px; }
+    label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+    input, textarea {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      width: 100%;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    button {
+      font: inherit;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 18px;
+      background: var(--accent);
+      color: var(--accent-text);
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+    .status { font-size: 14px; color: var(--muted); }
+    .status.error { color: var(--error); }
+    .hp { position: absolute; left: -9999px; }
+    #list { display: grid; gap: 12px; }
+    .msg h2 { font-size: 18px; margin: 0 0 4px; overflow-wrap: anywhere; }
+    .meta { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .meta .author { color: var(--text); font-weight: 600; }
+    .msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .empty { text-align: center; color: var(--muted); padding: 24px 0; }
+    #more { display: block; margin: 16px auto 0; }
+    #more[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>留言板</h1>
+    <p class="sub">随便说点什么，所有人都能看到。</p>
+
+    <form id="form" class="card" autocomplete="off">
+      <label>你的名字（可选，留空则为“匿名”）
+        <input name="name" maxlength="30" placeholder="匿名" />
+      </label>
+      <label>标题
+        <input name="title" maxlength="100" required />
+      </label>
+      <label>内容
+        <textarea name="content" maxlength="2000" required></textarea>
+      </label>
+      <input class="hp" name="website" tabindex="-1" aria-hidden="true" />
+      <div class="row">
+        <button type="submit" id="submit">发布</button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+    </form>
+
+    <div id="list"></div>
+    <button id="more" class="secondary" hidden>加载更多</button>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const fields = form.elements; // form.name / form.title would hit the form's own properties
+    const list = document.getElementById("list");
+    const more = document.getElementById("more");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submit");
+    let oldestId = null;
+
+    try {
+      fields.name.value = localStorage.getItem("mb-name") || "";
+    } catch {}
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle("error", isError);
+    }
+
+    function formatTime(sec) {
+      const diff = Date.now() / 1000 - sec;
+      if (diff < 60) return "刚刚";
+      if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+      return new Date(sec * 1000).toLocaleString("zh-CN", { hour12: false });
+    }
+
+    // Built with textContent only, so user input is never interpreted as HTML.
+    function renderMessage(m) {
+      const el = document.createElement("article");
+      el.className = "card msg";
+      const h = document.createElement("h2");
+      h.textContent = m.title;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const author = document.createElement("span");
+      author.className = "author";
+      author.textContent = m.name;
+      const time = document.createElement("time");
+      time.dateTime = new Date(m.created_at * 1000).toISOString();
+      time.textContent = " · " + formatTime(m.created_at);
+      meta.append(author, time);
+      const p = document.createElement("p");
+      p.textContent = m.content;
+      el.append(h, meta, p);
+      return el;
+    }
+
+    async function load() {
+      more.disabled = true;
+      const qs = oldestId ? `?before=${oldestId}` : "";
+      try {
+        const res = await fetch(`/api/messages${qs}`);
+        const data = await res.json();
+        for (const m of data.messages) list.append(renderMessage(m));
+        if (data.messages.length) oldestId = data.messages[data.messages.length - 1].id;
+        if (!list.children.length) {
+          list.innerHTML = '<div class="empty">还没有留言，来发第一条吧。</div>';
+        }
+        more.hidden = !data.hasMore;
+      } catch {
+        setStatus("加载失败，请刷新重试", true);
+      } finally {
+        more.disabled = false;
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      setStatus("发布中…");
+      const payload = {
+        name: fields.name.value,
+        title: fields.title.value,
+        content: fields.content.value,
+        website: fields.website.value,
+      };
+      try {
+        const res = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "发布失败");
+        try { localStorage.setItem("mb-name", fields.name.value.trim()); } catch {}
+        fields.title.value = "";
+        fields.content.value = "";
+        list.querySelector(".empty")?.remove();
+        if (data.message) list.prepend(renderMessage(data.message));
+        setStatus("已发布");
+      } catch (err) {
+        setStatus(err.message, true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    more.addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

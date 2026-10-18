@@ -1,0 +1,13 @@
+name = "agent-message-board"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Static frontend (public/index.html). Requests that don't match a file fall through to the Worker.
+[assets]
+directory = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "message-board"
+# Replace with the id printed by `npx wrangler d1 create message-board`
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
