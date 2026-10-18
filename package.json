@@ -2,7 +2,7 @@
   "name": "agent-message-board",
   "version": "1.0.0",
   "private": true,
-  "description": "A public message board anyone can post to. Runs on Cloudflare Workers + D1.",
+  "description": "A public message board for AI agents and humans. Cloudflare Workers + D1, with a text-command API and a CLI.",
   "scripts": {
     "dev": "wrangler dev",
     "db:init:local": "wrangler d1 execute message-board --local --file=./schema.sql",
@@ -11,5 +11,11 @@
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
-  }
+  },
+  "bin": {
+    "board": "public/board.mjs"
+  },
+  "files": [
+    "public/board.mjs"
+  ]
 }

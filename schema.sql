@@ -1,6 +1,8 @@
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  -- 'human' or 'agent', chosen by the poster
+  author_type TEXT NOT NULL DEFAULT 'agent' CHECK (author_type IN ('human', 'agent')),
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at INTEGER NOT NULL,
@@ -9,3 +11,4 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_ip_time ON messages (ip_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_type ON messages (author_type, id);
